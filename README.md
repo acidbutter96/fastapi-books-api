@@ -1,126 +1,159 @@
-# FastAPI JWT Postgres REST API (Dockerized Example)
+# 🚀 FastAPI JWT Postgres REST API (Dockerized Example)
 
-Requirement (client brief): Example FastAPI JWT Postgres REST API running in Docker with test cases. Must include: Docker image (tested on macOS Sequoia 15.6 / Linux), SQL user/password from .env or docker compose env, FastAPI, JWT user auth, Postgres database, PGAdmin, CRUD endpoints, User and Book SQLModel models, automated tests.
+Minimal, production‑leaning template implementing JWT auth, Postgres persistence, async SQLModel ORM and test suite — all orchestrated with Docker Compose. ✅ Built & verified on macOS Sequoia 15.6 and Linux.
 
-This project delivers a minimal, production‑leaning template including authentication, persistence, and test setup. All services orchestrated with Docker Compose.
+> Client brief: Provide an example FastAPI + JWT + Postgres REST API in Docker with tests, CRUD, PGAdmin and User/Book models.
 
-## Features
-* FastAPI application with lifespan startup creating tables.
-* JWT authentication (password hashing via passlib bcrypt + jose token generation).
-* User & Book models built with SQLModel (SQLAlchemy core under the hood).
-* PostgreSQL database service + persistent volume.
-* PGAdmin web UI for inspecting the database.
-* CRUD endpoints for books (scoped to authenticated user) and user creation.
-* Token endpoint (OAuth2 password flow style) returning access token.
-* Async DB access using SQLAlchemy async engine (asyncpg driver in production; aiosqlite for isolated test DB).
-* Test suite (pytest + httpx + pytest-asyncio) including auth + CRUD paths.
-* Environment variable driven configuration (.env loaded automatically).
+---
 
-## Stack
+### 📚 Table of Contents
+1. ✨ Features
+2. 🧱 Tech Stack
+3. 🗂 Project Structure
+4. 🔐 Environment Variables
+5. 🏁 Quick Start
+6. 🔌 API Reference
+7. 🔄 Auth Flow
+8. 🧪 Testing
+9. 🐳 Docker Image Notes
+10. 🚀 Roadmap / Extensions
+11. 🛠 Troubleshooting
+12. 📄 License
+
+---
+
+## ✨ Features
+| ✅ | Feature |
+|----|---------|
+| ✔ | FastAPI app with lifespan startup auto-creating tables |
+| ✔ | JWT auth (HS256) + bcrypt password hashing (no passlib dependency) |
+| ✔ | User & Book SQLModel models (type-safe + Pydantic integration) |
+| ✔ | CRUD endpoints for books scoped per authenticated user |
+| ✔ | OAuth2 password flow token endpoint (/token) |
+| ✔ | Async SQLAlchemy engine (asyncpg in prod, aiosqlite for tests) |
+| ✔ | PGAdmin UI for DB inspection |
+| ✔ | Isolated, deterministic pytest suite (httpx AsyncClient) |
+| ✔ | Environment-based configuration via .env |
+| ✔ | Docker Compose orchestration (web, db, pgadmin) |
+
+## 🧱 Tech Stack
 | Layer | Tech |
 |-------|------|
 | API | FastAPI |
-| Auth | OAuth2 password flow + JWT (HS256) |
-| ORM / Models | SQLModel |
+| Auth | OAuth2 password grant + JWT (python-jose) |
+| Password Hashing | bcrypt |
+| Models / ORM | SQLModel (SQLAlchemy core) |
 | DB (runtime) | PostgreSQL 15 (asyncpg) |
 | Admin | PGAdmin4 |
 | Tests | pytest, httpx (ASGITransport), pytest-asyncio |
 | Packaging | Poetry |
-| Container | Docker / docker-compose |
+| Container | Docker & docker-compose |
 
-## Project Structure
+## 🗂 Project Structure
 ```
 app/
-	api/controller.py      # Route handlers
-	auth/auth_handler.py   # Password hashing + JWT helpers
-	db/database.py         # Async engine + session dependency
-	models/entities.py     # SQLModel User & Book
+	api/controller.py      # Routes (auth, users, books)
+	auth/auth_handler.py   # JWT + bcrypt helpers
+	db/database.py         # Async engine, sessions, init
+	models/entities.py     # SQLModel User & Book tables
 	main.py                # FastAPI app + lifespan
-tests/                   # Pytest suite
+tests/                   # Test suite (auth + CRUD)
 docker-compose.yml       # Services: db, pgadmin, web
-Dockerfile               # Web image build
+Dockerfile               # Build instructions
 pyproject.toml           # Dependencies (Poetry)
-.env                     # Environment variables (create this)
+.env                     # Environment variables (user-provided)
 ```
 
-## Environment Variables (.env)
-Example `.env` (create at repo root):
+## 🔐 Environment Variables (.env)
+Example:
 ```
 POSTGRES_USER=appuser
 POSTGRES_PASSWORD=apppassword
 POSTGRES_DB=appdb
 JWT_SECRET=supersecretkey
 ```
-These are injected into the `db` (Postgres) container and the `web` service.
+Optional override: `DATABASE_URL` (e.g. for tests / CI). Defaults assembled from the above if not provided.
 
-## Running (Development / Demo)
-Build and start stack:
+## 🏁 Quick Start
 ```zsh
-docker-compose up --build
+# 1. Create .env (see above)
+# 2. Build & start
+docker compose up --build -d
+
+# 3. Visit API docs
+open http://localhost:8000/docs  # macOS (use xdg-open on Linux)
+
+# 4. (Optional) Run tests locally
+poetry install --with dev --no-root
+poetry run pytest -q
 ```
 Services:
-* API: http://localhost:8000 (Swagger UI at /docs)
-* PGAdmin: http://localhost:5050 (email: admin@admin.com / password: admin)
+* API: http://localhost:8000 (Swagger UI /docs)
+* PGAdmin: http://localhost:5050 (admin@admin.com / admin)
 * Postgres: localhost:5432
 
-Hot reload: You can add `--reload` to the uvicorn command in `docker-compose.yml` during development if desired.
+Hot reload (dev): add `--reload` to the uvicorn command inside `docker-compose.yml`.
 
-## API Overview
+## 🔌 API Reference (Summary)
 Auth:
-* POST /token – obtain JWT access token (form fields: username, password)
+* POST `/token` – obtain JWT (form: username, password)
 
 Users:
-* POST /users/ – create a user (sends hashed_password field which is re-hashed internally)
-* GET /users/me – retrieve current authenticated user
+* POST `/users/` – create user (sends plaintext password -> hashed server-side)
+* GET `/users/me` – current user profile
 
-Books (require Authorization: Bearer <token>):
-* POST /books/ – create book owned by current user
-* GET /books/ – list current user books
-* GET /books/{book_id} – retrieve one
-* PUT /books/{book_id} – update title/author
-* DELETE /books/{book_id} – delete
+Books (Bearer token required):
+* POST `/books/` – create
+* GET `/books/` – list own
+* GET `/books/{id}` – retrieve
+* PUT `/books/{id}` – update
+* DELETE `/books/{id}` – delete
 
-## Auth Flow
-1. Create user (POST /users/).
-2. Login (POST /token) with form data to receive JWT.
-3. Send `Authorization: Bearer <token>` header to access protected routes.
+## 🔄 Auth Flow
+1. Create user: POST `/users/`
+2. Login: POST `/token` (form data)
+3. Use header: `Authorization: Bearer <token>` for protected endpoints
 
-## Testing
-Run all tests locally (Python 3.12 + Poetry installed):
+## 🧪 Testing
+Local (Poetry):
 ```zsh
 poetry install --with dev --no-root
 poetry run pytest -q
 ```
-The test suite spins up an isolated SQLite (aiosqlite) database per session, independent from Postgres.
+The suite switches to an ephemeral SQLite file DB via `DATABASE_URL` override — fast & isolated.
 
-Inside containers:
+Inside container:
 ```zsh
-docker-compose exec web pytest -q
+docker compose exec web pytest -q
 ```
 
-## Docker Image Notes
-* Uses `python:3.12-slim` base.
-* Installs dependencies with Poetry (no virtualenv inside container).
-* Runs `uvicorn app.main:app` on port 8000.
-* Works on macOS Sequoia 15.6 (tested) and Linux (standard Docker environment).
+## 🐳 Docker Image Notes
+* Base: `python:3.12-slim`
+* Dependency management: Poetry (system install, no nested venv)
+* Entrypoint: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+* Volume: mounts `./app` for live code edits (dev convenience)
 
-## Extending
-Ideas:
-* Add refresh tokens / token revocation.
-* Add Alembic migrations.
-* Add rate limiting / logging middleware.
-* Implement pagination for book listing.
+## 🚀 Roadmap / Extensions
+- [ ] Refresh / revoke tokens
+- [ ] Alembic migrations instead of create_all
+- [ ] Pagination & filtering for `/books/`
+- [ ] Structured logging + request ID middleware
+- [ ] Rate limiting / throttling
+- [ ] CI pipeline (GitHub Actions) + coverage
+- [ ] Separate Pydantic schemas from DB models
+- [ ] Error handling module with custom exceptions
 
-## License
-MIT (adjust as needed).
-
-## Quick Troubleshooting
+## 🛠 Troubleshooting
 | Issue | Fix |
 |-------|-----|
-| 401 on /token | Ensure user created and password correct |
-| PGAdmin cannot connect | Check Postgres env vars match `.env` |
-| Tests fail on DB | Remove old test *.db files, re-run |
-| ModuleNotFoundError aiosqlite | Run Poetry install with dependencies |
+| 401 on /token | Ensure user exists & correct password |
+| PGAdmin fails to connect | Verify `.env` matches docker-compose env values |
+| Tables not created | Confirm lifespan ran; check container logs for DB URL |
+| Tests failing with missing aiosqlite | Re-run `poetry install --with dev` |
+| Connection refused on startup | Postgres not ready yet; rerun or add healthcheck |
+
+## 📄 License
+MIT (adjust if required).
 
 ---
-This repository is a concise baseline for JWT-secured FastAPI + Postgres projects with Docker and tests.
+This repository is a concise baseline for JWT‑secured FastAPI + Postgres projects with Docker and tests. PRs / improvements welcome. ✌️
