@@ -153,7 +153,7 @@ docker compose exec web pytest -q
 | Connection refused on startup | Postgres not ready yet; rerun or add healthcheck |
 
 ## 📄 License
-MIT (adjust if required).
+MIT.
 
 ---
 This repository is a concise baseline for JWT‑secured FastAPI + Postgres projects with Docker and tests. PRs / improvements welcome. ✌️
