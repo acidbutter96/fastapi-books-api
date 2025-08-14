@@ -3,27 +3,21 @@ import uuid
 from pathlib import Path
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy import delete
 from app.models.entities import User, Book
 from app.auth.auth_handler import get_password_hash
 from app.db.database import init_db, session_context
+from app.main import app
 
-# Definir DATABASE_URL de testes ANTES de importar o app
-# para que o engine use SQLite
 _test_db_name = f"test_{uuid.uuid4().hex}.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_test_db_name}"
-from app.main import app  # noqa: E402 depois de setar env
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def setup_db():
-    # Criar arquivo sqlite único por execução
     db_path = Path(_test_db_name)
-    # Criar tabelas (lifespan já chama init_db, mas garantimos)
     await init_db()
-
-    # Popular usuário inicial
     async with session_context() as session:
         user = User(
             username="testuser",
@@ -31,10 +25,7 @@ async def setup_db():
         )
         session.add(user)
         await session.commit()
-
     yield
-
-    # Limpeza
     async with session_context() as session:
         await session.execute(delete(Book))
         await session.execute(delete(User))
@@ -45,7 +36,8 @@ async def setup_db():
 
 @pytest.mark.asyncio
 async def test_login():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.post(
             "/token",
             data={"username": "testuser", "password": "testpass"},
@@ -56,7 +48,8 @@ async def test_login():
 
 @pytest.mark.asyncio
 async def test_create_book():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         login = await ac.post(
             "/token",
             data={"username": "testuser", "password": "testpass"},
@@ -74,7 +67,8 @@ async def test_create_book():
 
 @pytest.mark.asyncio
 async def test_read_books():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         login = await ac.post(
             "/token",
             data={"username": "testuser", "password": "testpass"},
